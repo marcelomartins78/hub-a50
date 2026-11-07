@@ -12,42 +12,61 @@
   #fundo { position:fixed; inset:-40px; background-size:cover; background-position:center; filter:blur(30px) brightness(.55); transition:opacity 1.5s; }
   #foto { position:fixed; inset:0; width:100%; height:100%; object-fit:contain; transition:opacity 1.5s; }
   .apagado { opacity:0; }
-  #relogio { position:fixed; right:28px; bottom:20px; text-align:right; text-shadow:0 2px 8px rgba(0,0,0,.8); }
-  #hora { font-size:64px; font-weight:300; line-height:1; }
-  #data { font-size:22px; margin-top:4px; }
-  #aba { position:fixed; top:0; left:0; height:100%; width:42%; background:rgba(15,15,15,.94);
-         transform:translateX(-100%); transition:transform .35s; padding:24px; overflow-y:auto; z-index:10; }
+  #sombra { position:fixed; right:0; bottom:0; width:60%; height:55%; background:linear-gradient(to top left, rgba(0,0,0,.65), rgba(0,0,0,0) 70%); pointer-events:none; }
+  #painel { position:fixed; right:32px; bottom:24px; text-align:right; text-shadow:0 2px 10px rgba(0,0,0,.9); }
+  #hora { font-size:84px; font-weight:300; line-height:1; }
+  #data { font-size:22px; margin-top:6px; opacity:.95; }
+  #clima { font-size:22px; margin-top:10px; }
+  #proximo { font-size:20px; margin-top:6px; opacity:.9; max-width:420px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  #gemini { position:fixed; top:18px; right:18px; width:52px; height:52px; border-radius:50%; background:rgba(255,255,255,.15); border:1px solid rgba(255,255,255,.35); display:flex; align-items:center; justify-content:center; z-index:6; }
+  #gemini svg { width:26px; height:26px; fill:#fff; }
+  #aba { position:fixed; top:0; left:0; height:100%; width:42%; background:rgba(15,15,15,.94); transform:translateX(-100%); transition:transform .35s; padding:24px; overflow-y:auto; z-index:10; }
   #aba.aberta { transform:translateX(0); }
   #aba h2 { font-size:18px; color:#aaa; margin:18px 0 8px; font-weight:500; }
   #aba h2:first-child { margin-top:0; }
-  .linha { padding:8px 0; border-bottom:1px solid #333; font-size:18px; }
-  .linha a { color:#fff; text-decoration:none; display:block; }
+  .linha { padding:10px 0; border-bottom:1px solid #333; font-size:18px; }
   #borda { position:fixed; top:0; left:0; width:30px; height:100%; z-index:5; }
 </style>
 </head>
 <body>
 <div id="fundo"></div>
 <img id="foto" alt="">
-<div id="relogio"><div id="hora">--:--</div><div id="data"></div></div>
+<div id="sombra"></div>
+<div id="painel">
+  <div id="hora">--:--</div>
+  <div id="data"></div>
+  <div id="clima"></div>
+  <div id="proximo"></div>
+</div>
+<div id="gemini" onclick="abrirGemini()"><svg viewBox="0 0 24 24"><path d="M12 14a3 3 0 0 0 3-3V5a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.9V21h2v-3.1A7 7 0 0 0 19 11h-2z"/></svg></div>
 <div id="borda"></div>
 <div id="aba">
-  <h2>Clima</h2>
-  <div id="clima" class="linha">Carregando...</div>
   <h2>Agenda de hoje</h2>
   <div id="agenda"><div class="linha">Carregando...</div></div>
   <h2>Apps</h2>
-  <div class="linha"><a href="intent://#Intent;package=com.google.android.youtube;end">YouTube</a></div>
-  <div class="linha"><a href="intent://#Intent;package=com.google.android.apps.chromecast.app;end">Google Home</a></div>
-  <div class="linha"><a href="intent://#Intent;package=PACOTE_DO_UNITV;end">UniTV</a></div>
+  <div class="linha" onclick="abrir('com.google.android.youtube')">YouTube</div>
+  <div class="linha" onclick="abrir('com.google.android.apps.chromecast.app')">Google Home</div>
+  <div class="linha" onclick="abrir('PACOTE_DO_UNITV')">UniTV</div>
+  <div class="linha" onclick="abrir('com.google.android.apps.bard')">Gemini</div>
 </div>
 <script>
-const API = 'https://script.google.com/macros/s/AKfycbwPhFE5SDHre6LeV_TVByGbywFu62G8QvxUaPqVTRXXdGWoDdBUNJnq-41TDShs2DyU/exec';
+const API = 'https://script.googleusercontent.com/macros/echo?user_content_key=AUkAhnRwthWMvaS3UIUgZds_hfPMPWCOqR55oukBdCVaST4LOSD3DvXLNxHPv3ppPEBIiPMzpr1n24LmXfzvKhILUZcgWrxyQTJVVOAJaVjwM0cM5HIOSCIrtnjyXYCM8IisirZlubEY3kHr23hNCQeJ0c762Pp68MVSF0s0nFZ7g3DxbUJaBgEGtyhhqFDIVnCkqM9jbswyWrKZ3Dgv2UVBXrCAbeiZn_zlt-xnkTuIRvjhHQaonpfqiuefALHsypwPiaj4AfrZZRvKFO3J1fZYXc-pIVLjTA&lib=M6Lmny85kDltWsIhL_EACNYPWuj-Zm2gr';
 const INTERVALO_FOTO = 20000;
 const LAT = -28.68, LON = -49.37;
 
 const fotoEl = document.getElementById('foto');
 const fundoEl = document.getElementById('fundo');
-let ids = [], pos = 0;
+let ids = [], pos = 0, eventos = [];
+
+// Abre apps: dentro do APK usa a ponte Android; no Chrome usa link intent
+function abrir(pacote) {
+  if (window.Android) Android.abrirApp(pacote);
+  else location.href = 'intent://#Intent;package=' + pacote + ';end';
+}
+function abrirGemini() {
+  if (window.Android) Android.abrirAssistente();
+  else abrir('com.google.android.apps.bard');
+}
 
 function embaralhar(a) { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
 
@@ -76,6 +95,7 @@ function relogio() {
   document.getElementById('hora').textContent = d.toLocaleTimeString('pt-BR', { hour:'2-digit', minute:'2-digit' });
   const t = d.toLocaleDateString('pt-BR', { weekday:'long', day:'numeric', month:'long' });
   document.getElementById('data').textContent = t.charAt(0).toUpperCase() + t.slice(1);
+  mostrarProximo();
 }
 
 const TEMPO = {0:'Céu limpo',1:'Poucas nuvens',2:'Parcialmente nublado',3:'Nublado',45:'Neblina',48:'Neblina',51:'Garoa',53:'Garoa',55:'Garoa',61:'Chuva fraca',63:'Chuva',65:'Chuva forte',80:'Pancadas',81:'Pancadas',82:'Pancadas fortes',95:'Trovoada',96:'Trovoada',99:'Trovoada'};
@@ -83,19 +103,27 @@ async function clima() {
   try {
     const r = await fetch('https://api.open-meteo.com/v1/forecast?latitude=' + LAT + '&longitude=' + LON + '&current=temperature_2m,weather_code&daily=temperature_2m_max,temperature_2m_min&timezone=America%2FSao_Paulo');
     const j = await r.json();
-    document.getElementById('clima').textContent = Math.round(j.current.temperature_2m) + '° – ' + (TEMPO[j.current.weather_code] || '') +
-      ' (mín ' + Math.round(j.daily.temperature_2m_min[0]) + '° / máx ' + Math.round(j.daily.temperature_2m_max[0]) + '°)';
-  } catch (e) { document.getElementById('clima').textContent = 'Sem conexão'; }
+    document.getElementById('clima').textContent = Math.round(j.current.temperature_2m) + '° ' + (TEMPO[j.current.weather_code] || '') +
+      ' · ' + Math.round(j.daily.temperature_2m_min[0]) + '°/' + Math.round(j.daily.temperature_2m_max[0]) + '°';
+  } catch (e) {}
 }
 
 async function agenda() {
-  const el = document.getElementById('agenda');
   try {
     const r = await fetch(API + '?acao=agenda'); const j = await r.json();
-    el.innerHTML = (j.eventos && j.eventos.length)
-      ? j.eventos.map(e => '<div class="linha">' + e.hora + ' – ' + e.titulo + '</div>').join('')
+    eventos = j.eventos || [];
+    document.getElementById('agenda').innerHTML = eventos.length
+      ? eventos.map(e => '<div class="linha">' + e.hora + ' – ' + e.titulo + '</div>').join('')
       : '<div class="linha">Nada marcado hoje</div>';
-  } catch (e) { el.innerHTML = '<div class="linha">Sem conexão</div>'; }
+    mostrarProximo();
+  } catch (e) {}
+}
+
+// Mostra no painel o próximo compromisso de hoje que ainda não passou
+function mostrarProximo() {
+  const agora = new Date().toTimeString().slice(0, 5);
+  const prox = eventos.find(e => e.hora === 'Dia todo' || e.hora >= agora);
+  document.getElementById('proximo').textContent = prox ? (prox.hora + ' · ' + prox.titulo) : '';
 }
 
 // Aba escondida: deslizar da borda esquerda para abrir, para a esquerda para fechar
@@ -105,13 +133,13 @@ document.addEventListener('touchstart', e => { x0 = e.touches[0].clientX; daBord
 document.addEventListener('touchend', e => {
   if (x0 === null) return;
   const dx = e.changedTouches[0].clientX - x0;
-  if (daBorda && dx > 60) { aba.classList.add('aberta'); agenda(); clima(); }
+  if (daBorda && dx > 60) { aba.classList.add('aberta'); agenda(); }
   else if (aba.classList.contains('aberta') && dx < -60) aba.classList.remove('aberta');
   x0 = null;
 });
 
-// Tela cheia no primeiro toque e manter a tela acesa
-document.addEventListener('click', () => { if (!document.fullscreenElement) document.documentElement.requestFullscreen().catch(() => {}); }, { once:true });
+// No Chrome: tela cheia no primeiro toque e tela acesa
+document.addEventListener('click', () => { if (!window.Android && !document.fullscreenElement) document.documentElement.requestFullscreen().catch(() => {}); }, { once:true });
 async function manterAcesa() { try { if ('wakeLock' in navigator) await navigator.wakeLock.request('screen'); } catch (e) {} }
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') manterAcesa(); });
 
@@ -120,9 +148,12 @@ if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');
 (async () => {
   relogio(); setInterval(relogio, 10000);
   manterAcesa();
+  clima(); setInterval(clima, 30 * 60000);
+  agenda(); setInterval(agenda, 10 * 60000);
   await carregarLista(); proximaFoto();
   setInterval(proximaFoto, INTERVALO_FOTO);
   setInterval(carregarLista, 30 * 60000);
+  setTimeout(() => location.reload(), 6 * 3600000); // busca atualizações a cada 6 h
 })();
 </script>
 </body>
