@@ -15,30 +15,45 @@
   #sombra { position:fixed; right:0; bottom:0; width:60%; height:55%; background:linear-gradient(to top left, rgba(0,0,0,.65), rgba(0,0,0,0) 70%); pointer-events:none; }
   #painel { position:fixed; right:32px; bottom:24px; text-align:right; text-shadow:0 2px 10px rgba(0,0,0,.9); }
   #hora { font-size:42px; font-weight:300; line-height:1; }
-  #data { font-size:12px; margin-top:6px; opacity:.95; }
-  #clima { font-size:12px; margin-top:10px; }
-  #proximo { font-size:11px; margin-top:6px; opacity:.9; max-width:420px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-  #gemini { position:fixed; top:18px; right:18px; width:52px; height:52px; border-radius:50%; background:rgba(255,255,255,.15); border:1px solid rgba(255,255,255,.35); display:flex; align-items:center; justify-content:center; z-index:6; }
-  #gemini svg { width:26px; height:26px; fill:#fff; }
+  #data { font-size:12px; margin-top:4px; opacity:.95; }
+  #clima { font-size:12px; margin-top:6px; }
+  #previsao { font-size:11px; margin-top:4px; opacity:.85; }
+  #chuva { font-size:11px; margin-top:4px; color:#9fd3ff; }
+  #proximo { font-size:11px; margin-top:4px; opacity:.9; max-width:320px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  #timers { position:fixed; left:32px; bottom:24px; text-shadow:0 2px 10px rgba(0,0,0,.9); z-index:4; }
+  .timer { background:rgba(0,0,0,.45); border-radius:14px; padding:8px 14px; margin-top:8px; }
+  .timer span { display:block; font-size:11px; opacity:.85; }
+  .timer b { font-size:30px; font-weight:300; }
+  #botoes { position:fixed; top:18px; right:18px; display:flex; gap:12px; z-index:6; }
+  .botao { width:48px; height:48px; border-radius:50%; background:rgba(255,255,255,.15); border:1px solid rgba(255,255,255,.35); display:flex; align-items:center; justify-content:center; }
+  .botao svg { width:24px; height:24px; fill:#fff; }
   #aba { position:fixed; top:0; left:0; height:100%; width:42%; background:rgba(15,15,15,.94); transform:translateX(-100%); transition:transform .35s; padding:24px; overflow-y:auto; z-index:10; }
   #aba.aberta { transform:translateX(0); }
   #aba h2 { font-size:18px; color:#aaa; margin:18px 0 8px; font-weight:500; }
   #aba h2:first-child { margin-top:0; }
   .linha { padding:10px 0; border-bottom:1px solid #333; font-size:18px; }
   #borda { position:fixed; top:0; left:0; width:30px; height:100%; z-index:5; }
+  #noite { position:fixed; inset:0; background:#000; opacity:0; transition:opacity 2s; pointer-events:none; z-index:20; }
 </style>
 </head>
 <body>
 <div id="fundo"></div>
 <img id="foto" alt="">
 <div id="sombra"></div>
+<div id="timers"></div>
 <div id="painel">
   <div id="hora">--:--</div>
   <div id="data"></div>
   <div id="clima"></div>
+  <div id="previsao"></div>
+  <div id="chuva"></div>
   <div id="proximo"></div>
 </div>
-<div id="gemini" onclick="abrirGemini()"><svg viewBox="0 0 24 24"><path d="M12 14a3 3 0 0 0 3-3V5a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.9V21h2v-3.1A7 7 0 0 0 19 11h-2z"/></svg></div>
+<div id="botoes">
+  <div class="botao" onclick="abrir('com.google.android.apps.chromecast.app')"><svg viewBox="0 0 24 24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg></div>
+  <div class="botao" onclick="abrir('com.spotify.music')"><svg viewBox="0 0 24 24"><path d="M12 3v10.55A4 4 0 1 0 14 17V7h4V3h-6z"/></svg></div>
+  <div class="botao" onclick="abrirGemini()"><svg viewBox="0 0 24 24"><path d="M12 14a3 3 0 0 0 3-3V5a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.9V21h2v-3.1A7 7 0 0 0 19 11h-2z"/></svg></div>
+</div>
 <div id="borda"></div>
 <div id="aba">
   <h2>Agenda de hoje</h2>
@@ -46,9 +61,11 @@
   <h2>Apps</h2>
   <div class="linha" onclick="abrir('com.google.android.youtube')">YouTube</div>
   <div class="linha" onclick="abrir('com.google.android.apps.chromecast.app')">Google Home</div>
+  <div class="linha" onclick="abrir('com.spotify.music')">Spotify</div>
   <div class="linha" onclick="abrir('PACOTE_DO_UNITV')">UniTV</div>
   <div class="linha" onclick="abrir('com.google.android.apps.bard')">Gemini</div>
 </div>
+<div id="noite"></div>
 <script>
 const API = 'https://script.google.com/macros/s/AKfycbwPhFE5SDHre6LeV_TVByGbywFu62G8QvxUaPqVTRXXdGWoDdBUNJnq-41TDShs2DyU/exec';
 const INTERVALO_FOTO = 20000;
@@ -58,7 +75,8 @@ const fotoEl = document.getElementById('foto');
 const fundoEl = document.getElementById('fundo');
 let ids = [], pos = 0, eventos = [];
 
-// Abre apps: dentro do APK usa a ponte Android; no Chrome usa link intent
+function esc(s) { return String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
 function abrir(pacote) {
   if (window.Android) Android.abrirApp(pacote);
   else location.href = 'intent://#Intent;package=' + pacote + ';end';
@@ -99,12 +117,35 @@ function relogio() {
 }
 
 const TEMPO = {0:'Céu limpo',1:'Poucas nuvens',2:'Parcialmente nublado',3:'Nublado',45:'Neblina',48:'Neblina',51:'Garoa',53:'Garoa',55:'Garoa',61:'Chuva fraca',63:'Chuva',65:'Chuva forte',80:'Pancadas',81:'Pancadas',82:'Pancadas fortes',95:'Trovoada',96:'Trovoada',99:'Trovoada'};
+
+// Item 4: clima de hoje, previsão de 3 dias e aviso de chuva nas próximas 3 horas
 async function clima() {
   try {
-    const r = await fetch('https://api.open-meteo.com/v1/forecast?latitude=' + LAT + '&longitude=' + LON + '&current=temperature_2m,weather_code&daily=temperature_2m_max,temperature_2m_min&timezone=America%2FSao_Paulo');
+    const r = await fetch('https://api.open-meteo.com/v1/forecast?latitude=' + LAT + '&longitude=' + LON +
+      '&current=temperature_2m,weather_code&hourly=precipitation_probability' +
+      '&daily=weather_code,temperature_2m_max,temperature_2m_min&forecast_days=4&timezone=America%2FSao_Paulo');
     const j = await r.json();
+    const d = j.daily;
     document.getElementById('clima').textContent = Math.round(j.current.temperature_2m) + '° ' + (TEMPO[j.current.weather_code] || '') +
-      ' · ' + Math.round(j.daily.temperature_2m_min[0]) + '°/' + Math.round(j.daily.temperature_2m_max[0]) + '°';
+      ' · ' + Math.round(d.temperature_2m_min[0]) + '°/' + Math.round(d.temperature_2m_max[0]) + '°';
+    const prev = [];
+    for (let i = 1; i < d.time.length; i++) {
+      const dia = new Date(d.time[i] + 'T12:00').toLocaleDateString('pt-BR', { weekday:'short' }).replace('.', '');
+      prev.push(dia + ' ' + Math.round(d.temperature_2m_min[i]) + '°/' + Math.round(d.temperature_2m_max[i]) + '°');
+    }
+    document.getElementById('previsao').textContent = prev.join('  ·  ');
+    const a = new Date();
+    const p2 = n => String(n).padStart(2, '0');
+    const chave = a.getFullYear() + '-' + p2(a.getMonth() + 1) + '-' + p2(a.getDate()) + 'T' + p2(a.getHours()) + ':00';
+    const k = j.hourly.time.indexOf(chave);
+    let aviso = '';
+    if (k >= 0) {
+      for (let i = k; i <= k + 3 && i < j.hourly.time.length; i++) {
+        const p = j.hourly.precipitation_probability[i];
+        if (p >= 60) { aviso = 'Chuva provável às ' + j.hourly.time[i].slice(11, 13) + 'h (' + p + '%)'; break; }
+      }
+    }
+    document.getElementById('chuva').textContent = aviso;
   } catch (e) {}
 }
 
@@ -113,20 +154,52 @@ async function agenda() {
     const r = await fetch(API + '?acao=agenda'); const j = await r.json();
     eventos = j.eventos || [];
     document.getElementById('agenda').innerHTML = eventos.length
-      ? eventos.map(e => '<div class="linha">' + e.hora + ' – ' + e.titulo + '</div>').join('')
+      ? eventos.map(e => '<div class="linha">' + esc(e.hora) + ' – ' + esc(e.titulo) + '</div>').join('')
       : '<div class="linha">Nada marcado hoje</div>';
     mostrarProximo();
   } catch (e) {}
 }
 
-// Mostra no painel o próximo compromisso de hoje que ainda não passou
 function mostrarProximo() {
   const agora = new Date().toTimeString().slice(0, 5);
   const prox = eventos.find(e => e.hora === 'Dia todo' || e.hora >= agora);
   document.getElementById('proximo').textContent = prox ? (prox.hora + ' · ' + prox.titulo) : '';
 }
 
-// Aba escondida: deslizar da borda esquerda para abrir, para a esquerda para fechar
+// Item 1: timers pedidos por voz, lidos pelo app a partir da notificação do Relógio
+function timers() {
+  const el = document.getElementById('timers');
+  let lista = [];
+  try { if (window.Android && Android.timers) lista = JSON.parse(Android.timers()); } catch (e) {}
+  const agora = Date.now();
+  el.innerHTML = lista.map(t => {
+    let txt = t.texto || '';
+    if (t.fim > 0) {
+      const s = Math.max(0, Math.round((t.fim - agora) / 1000));
+      const h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), ss = s % 60;
+      txt = (h ? h + ':' + String(m).padStart(2, '0') : m) + ':' + String(ss).padStart(2, '0');
+    }
+    return '<div class="timer"><span>' + esc(t.titulo || 'Timer') + '</span><b>' + esc(txt) + '</b></div>';
+  }).join('');
+}
+
+// Item 5: tela apagada 00h–06h, clareando 06h–06h30; acende 15 s quando o Ok Google abre
+let acordadoAte = 0, ultimoBrilho = null;
+function acordar() { acordadoAte = Date.now() + 15000; luz(); }
+function nivelNoite() {
+  const d = new Date(), m = d.getHours() * 60 + d.getMinutes();
+  if (m < 360) return 1;
+  if (m < 390) return 1 - (m - 360) / 30;
+  return 0;
+}
+function luz() {
+  let n = nivelNoite();
+  if (Date.now() < acordadoAte) n = 0;
+  document.getElementById('noite').style.opacity = n;
+  const b = n === 0 ? -1 : Math.max(0.01, Math.round((1 - n) * 100) / 100);
+  if (b !== ultimoBrilho && window.Android && Android.brilho) { Android.brilho(b); ultimoBrilho = b; }
+}
+
 const aba = document.getElementById('aba');
 let x0 = null, daBorda = false;
 document.addEventListener('touchstart', e => { x0 = e.touches[0].clientX; daBorda = x0 < 30; }, { passive:true });
@@ -138,7 +211,6 @@ document.addEventListener('touchend', e => {
   x0 = null;
 });
 
-// No Chrome: tela cheia no primeiro toque e tela acesa
 document.addEventListener('click', () => { if (!window.Android && !document.fullscreenElement) document.documentElement.requestFullscreen().catch(() => {}); }, { once:true });
 async function manterAcesa() { try { if ('wakeLock' in navigator) await navigator.wakeLock.request('screen'); } catch (e) {} }
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') manterAcesa(); });
@@ -147,13 +219,15 @@ if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');
 
 (async () => {
   relogio(); setInterval(relogio, 10000);
+  luz(); setInterval(luz, 1000);
+  timers(); setInterval(timers, 1000);
   manterAcesa();
   clima(); setInterval(clima, 30 * 60000);
   agenda(); setInterval(agenda, 10 * 60000);
   await carregarLista(); proximaFoto();
   setInterval(proximaFoto, INTERVALO_FOTO);
   setInterval(carregarLista, 30 * 60000);
-  setTimeout(() => location.reload(), 6 * 3600000); // busca atualizações a cada 6 h
+  setTimeout(() => location.reload(), 6 * 3600000);
 })();
 </script>
 </body>
