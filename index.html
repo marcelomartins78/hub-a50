@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#000000">
+<title>Hub A50</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  html, body { width:100%; height:100%; background:#000; overflow:hidden; font-family:Roboto, Arial, sans-serif; color:#fff; }
+  #fundo { position:fixed; inset:-40px; background-size:cover; background-position:center; filter:blur(30px) brightness(.55); transition:opacity 1.5s; }
+  #foto { position:fixed; inset:0; width:100%; height:100%; object-fit:contain; transition:opacity 1.5s; }
+  .apagado { opacity:0; }
+  #relogio { position:fixed; right:28px; bottom:20px; text-align:right; text-shadow:0 2px 8px rgba(0,0,0,.8); }
+  #hora { font-size:64px; font-weight:300; line-height:1; }
+  #data { font-size:22px; margin-top:4px; }
+  #aba { position:fixed; top:0; left:0; height:100%; width:42%; background:rgba(15,15,15,.94);
+         transform:translateX(-100%); transition:transform .35s; padding:24px; overflow-y:auto; z-index:10; }
+  #aba.aberta { transform:translateX(0); }
+  #aba h2 { font-size:18px; color:#aaa; margin:18px 0 8px; font-weight:500; }
+  #aba h2:first-child { margin-top:0; }
+  .linha { padding:8px 0; border-bottom:1px solid #333; font-size:18px; }
+  .linha a { color:#fff; text-decoration:none; display:block; }
+  #borda { position:fixed; top:0; left:0; width:30px; height:100%; z-index:5; }
+</style>
+</head>
+<body>
+<div id="fundo"></div>
+<img id="foto" alt="">
+<div id="relogio"><div id="hora">--:--</div><div id="data"></div></div>
+<div id="borda"></div>
+<div id="aba">
+  <h2>Clima</h2>
+  <div id="clima" class="linha">Carregando...</div>
+  <h2>Agenda de hoje</h2>
+  <div id="agenda"><div class="linha">Carregando...</div></div>
+  <h2>Apps</h2>
+  <div class="linha"><a href="intent://#Intent;package=com.google.android.youtube;end">YouTube</a></div>
+  <div class="linha"><a href="intent://#Intent;package=com.google.android.apps.chromecast.app;end">Google Home</a></div>
+  <div class="linha"><a href="intent://#Intent;package=PACOTE_DO_UNITV;end">UniTV</a></div>
+</div>
+<script>
+const API = 'https://script.google.com/macros/s/AKfycbwPhFE5SDHre6LeV_TVByGbywFu62G8QvxUaPqVTRXXdGWoDdBUNJnq-41TDShs2DyU/exec';
+const INTERVALO_FOTO = 20000;
+const LAT = -28.68, LON = -49.37;
+
+const fotoEl = document.getElementById('foto');
+const fundoEl = document.getElementById('fundo');
+let ids = [], pos = 0;
+
+function embaralhar(a) { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
+
+async function carregarLista() {
+  try { const r = await fetch(API + '?acao=lista'); const j = await r.json(); if (j.ids && j.ids.length) { ids = embaralhar(j.ids); pos = 0; } } catch (e) {}
+}
+
+async function proximaFoto() {
+  if (!ids.length) return;
+  if (pos >= ids.length) await carregarLista();
+  const id = ids[pos++];
+  try {
+    const r = await fetch(API + '?acao=foto&id=' + encodeURIComponent(id));
+    const j = await r.json();
+    if (!j.img) return;
+    fotoEl.classList.add('apagado'); fundoEl.classList.add('apagado');
+    setTimeout(() => {
+      fotoEl.src = j.img; fundoEl.style.backgroundImage = 'url(' + j.img + ')';
+      fotoEl.classList.remove('apagado'); fundoEl.classList.remove('apagado');
+    }, 1500);
+  } catch (e) {}
+}
+
+function relogio() {
+  const d = new Date();
+  document.getElementById('hora').textContent = d.toLocaleTimeString('pt-BR', { hour:'2-digit', minute:'2-digit' });
+  const t = d.toLocaleDateString('pt-BR', { weekday:'long', day:'numeric', month:'long' });
+  document.getElementById('data').textContent = t.charAt(0).toUpperCase() + t.slice(1);
+}
+
+const TEMPO = {0:'Céu limpo',1:'Poucas nuvens',2:'Parcialmente nublado',3:'Nublado',45:'Neblina',48:'Neblina',51:'Garoa',53:'Garoa',55:'Garoa',61:'Chuva fraca',63:'Chuva',65:'Chuva forte',80:'Pancadas',81:'Pancadas',82:'Pancadas fortes',95:'Trovoada',96:'Trovoada',99:'Trovoada'};
+async function clima() {
+  try {
+    const r = await fetch('https://api.open-meteo.com/v1/forecast?latitude=' + LAT + '&longitude=' + LON + '&current=temperature_2m,weather_code&daily=temperature_2m_max,temperature_2m_min&timezone=America%2FSao_Paulo');
+    const j = await r.json();
+    document.getElementById('clima').textContent = Math.round(j.current.temperature_2m) + '° – ' + (TEMPO[j.current.weather_code] || '') +
+      ' (mín ' + Math.round(j.daily.temperature_2m_min[0]) + '° / máx ' + Math.round(j.daily.temperature_2m_max[0]) + '°)';
+  } catch (e) { document.getElementById('clima').textContent = 'Sem conexão'; }
+}
+
+async function agenda() {
+  const el = document.getElementById('agenda');
+  try {
+    const r = await fetch(API + '?acao=agenda'); const j = await r.json();
+    el.innerHTML = (j.eventos && j.eventos.length)
+      ? j.eventos.map(e => '<div class="linha">' + e.hora + ' – ' + e.titulo + '</div>').join('')
+      : '<div class="linha">Nada marcado hoje</div>';
+  } catch (e) { el.innerHTML = '<div class="linha">Sem conexão</div>'; }
+}
+
+// Aba escondida: deslizar da borda esquerda para abrir, para a esquerda para fechar
+const aba = document.getElementById('aba');
+let x0 = null, daBorda = false;
+document.addEventListener('touchstart', e => { x0 = e.touches[0].clientX; daBorda = x0 < 30; }, { passive:true });
+document.addEventListener('touchend', e => {
+  if (x0 === null) return;
+  const dx = e.changedTouches[0].clientX - x0;
+  if (daBorda && dx > 60) { aba.classList.add('aberta'); agenda(); clima(); }
+  else if (aba.classList.contains('aberta') && dx < -60) aba.classList.remove('aberta');
+  x0 = null;
+});
+
+// Tela cheia no primeiro toque e manter a tela acesa
+document.addEventListener('click', () => { if (!document.fullscreenElement) document.documentElement.requestFullscreen().catch(() => {}); }, { once:true });
+async function manterAcesa() { try { if ('wakeLock' in navigator) await navigator.wakeLock.request('screen'); } catch (e) {} }
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') manterAcesa(); });
+
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');
+
+(async () => {
+  relogio(); setInterval(relogio, 10000);
+  manterAcesa();
+  await carregarLista(); proximaFoto();
+  setInterval(proximaFoto, INTERVALO_FOTO);
+  setInterval(carregarLista, 30 * 60000);
+})();
+</script>
+</body>
+</html>
